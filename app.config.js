@@ -5,12 +5,11 @@ module.exports = ({ config }) => ({
   slug: 'findme',
   scheme: 'findme',
   version: '1.0.0',
-  // Do not inherit an EAS project ID from a previous local Expo configuration.
   extra: {
     ...config.extra,
     eas: {
       ...config.extra?.eas,
-      projectId: '5f27f712-23f3-40f9-b2d4-344c4238b8a9',
+      projectId: 'ff739f22-93ca-4021-97fa-72e58c6cbd06',
     },
   },
   orientation: 'portrait',
