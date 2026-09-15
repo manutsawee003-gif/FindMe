@@ -1,0 +1,7 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // LINE sessions are authorized by the backend. Deny mobile/web SDK access.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

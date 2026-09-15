@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+backend/.findme-local-store.json
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.jks
+*.keystore
+*-service-account.json
