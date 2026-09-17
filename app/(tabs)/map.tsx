@@ -6,6 +6,7 @@ import { Body, Button, Card, ErrorNotice, Heading, Screen, Badge } from '../../c
 import { SignIn } from '../../components/SignIn';
 import MapCanvas from '../../components/MapCanvas';
 import type { MapPoint } from '../../components/map-types';
+import { emergencyTheme, familyPinColor } from '../../components/emergency-theme';
 import { useSession } from '../../services/session';
 import { publicApi } from '../../services/api';
 import { currentLocation } from '../../services/location';
@@ -45,12 +46,17 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => {
-    if (!data || own) return;
+    if (own) return;
     let active = true;
     setBusy(true);
     currentLocation()
       .then(location => {
-        if (active) setOwn(location);
+        if (active) {
+          setOwn(location);
+          if (!member) {
+            setSelectedPointId(data?.user.id || 'user-own');
+          }
+        }
       })
       .catch(e => {
         if (active) setMessage((e as Error).message);
@@ -61,7 +67,7 @@ export default function MapScreen() {
     return () => {
       active = false;
     };
-  }, [!data, !own]);
+  }, [own, member, data?.user.id]);
 
   const allPoints: MapPoint[] =
     data?.members
@@ -82,10 +88,14 @@ export default function MapScreen() {
     });
   }
 
-  if (own && data) {
-    const existing = allPoints.find(p => p.id === data.user.id);
-    if (existing && !existing.emergency) existing.location = own;
-    if (!existing) allPoints.push({ id: data.user.id, name: 'Your Location (You)', location: own });
+  if (own) {
+    const myId = data?.user.id || 'user-own';
+    const existing = allPoints.find(p => p.id === myId);
+    if (existing && !existing.emergency) {
+      existing.location = own;
+    } else if (!existing) {
+      allPoints.unshift({ id: myId, name: `${data?.user.displayName || 'Your Location'} (You)`, location: own });
+    }
   }
 
   for (const emergency of publicEmergencies) {
@@ -187,7 +197,7 @@ export default function MapScreen() {
               <View
                 style={[
                   styles.markerIconBox,
-                  { backgroundColor: selectedPoint.emergency ? colors.red : colors.blue }
+                  { backgroundColor: selectedPoint.emergency ? emergencyTheme(selectedPoint.emergency).color : familyPinColor }
                 ]}
               >
                 <Ionicons
@@ -237,7 +247,7 @@ export default function MapScreen() {
               <View
                 style={[
                   styles.pointRowDot,
-                  { backgroundColor: p.emergency ? colors.red : colors.blue }
+                  { backgroundColor: p.emergency ? emergencyTheme(p.emergency).color : familyPinColor }
                 ]}
               />
               <View style={{ flex: 1, gap: 2 }}>
@@ -359,4 +369,3 @@ const styles = StyleSheet.create({
     color: colors.muted
   }
 });
-

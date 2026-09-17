@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Linking, Platform, Share, Text, View, StyleSheet, Image, Pressable } from 'react-native';
+import { Platform, Share, Text, View, StyleSheet, Image, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Body, Button, Card, ErrorNotice, Heading, Input, Screen, Badge } from '../../components/ui';
 import { SignIn } from '../../components/SignIn';
@@ -85,6 +85,8 @@ export default function Family() {
                     onPress={() =>
                       run(async () => {
                         await api('/family', { name });
+                        const result = await api<{ code: string }>('/family/invite', {});
+                        setInvite(result.code);
                         await refresh();
                       })
                     }
@@ -289,16 +291,6 @@ export default function Family() {
 
                     <View style={{ gap: 8, marginTop: 4 }}>
                       <Button
-                        tone="line"
-                        icon="chatbubble-ellipses"
-                        label="Share Invite via LINE"
-                        onPress={() =>
-                          run(async () => {
-                            await Linking.openURL(`https://line.me/R/share?text=${encodeURIComponent(message)}`);
-                          })
-                        }
-                      />
-                      <Button
                         tone="outline"
                         size="sm"
                         label="Share via Other Apps"
@@ -312,6 +304,18 @@ export default function Family() {
                   </View>
                 )}
               </Card>
+
+              <Button
+                tone="outline"
+                size="sm"
+                icon="exit-outline"
+                label="Leave Family"
+                disabled={busy}
+                onPress={() => run(async () => {
+                  await api('/family/leave', {});
+                  await refresh();
+                })}
+              />
             </>
           )}
         </>
@@ -493,4 +497,3 @@ const styles = StyleSheet.create({
     color: colors.blue
   }
 });
-

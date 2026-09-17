@@ -14,7 +14,7 @@ export default function Profile() {
   return (
     <Screen
       title="Profile & Account"
-      subtitle="Manage your LINE linked account, safety preferences, and family settings"
+      subtitle="Manage your safety preferences and family settings"
     >
       {!data ? (
         <SignIn />
@@ -32,7 +32,7 @@ export default function Profile() {
                   </View>
                 )}
                 <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={18} color={colors.line} />
+                  <Ionicons name="checkmark-circle" size={18} color={colors.green} />
                 </View>
               </View>
 
@@ -41,7 +41,6 @@ export default function Profile() {
                   <Heading size="lg">{data.user.displayName}</Heading>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Badge label="LINE Connected" tone="line" icon="chatbubble-ellipses" />
                   {data.family && <Badge label={data.family.name} tone="safe" />}
                 </View>
                 <Text style={styles.userUidText}>User ID: {data.user.id.slice(0, 16)}...</Text>
@@ -49,19 +48,9 @@ export default function Profile() {
             </View>
           </Card>
 
-          {/* Account & Family Info */}
+          {/* Family Info */}
           <Card tone="default">
-            <Heading size="sm">Connected Services</Heading>
-            <View style={styles.infoRow}>
-              <View style={styles.infoIconBox}>
-                <Ionicons name="shield-checkmark" size={18} color={colors.green} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.infoLabel}>Authentication</Text>
-                <Text style={styles.infoValue}>Official LINE OAuth 2.0</Text>
-              </View>
-              <Badge label="Active" tone="safe" />
-            </View>
+            <Heading size="sm">Family Circle</Heading>
 
             <View style={styles.infoRow}>
               <View style={styles.infoIconBox}>
@@ -177,4 +166,3 @@ const styles = StyleSheet.create({
     color: colors.ink
   }
 });
-

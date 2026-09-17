@@ -1,8 +1,11 @@
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { firestoreStore } from './store.mjs';
-import { domain, token, hash, fail, publicUser } from './domain.mjs';
+import { memoryStore } from './memory-store.mjs';
+import { domain, token, hash, fail, publicUser, text } from './domain.mjs';
 
 function isAllowedOrigin(origin, config) {
   if (!origin) return true;
@@ -23,6 +26,24 @@ function isAllowedRedirect(uri, config) {
     return true;
   }
   return false;
+}
+
+function firebaseAuth(config) {
+  if (!getApps().length) {
+    // Vercel has no Application Default Credentials. Store the Firebase
+    // service-account JSON as the FIREBASE_SERVICE_ACCOUNT_JSON secret there;
+    // local development can continue using GOOGLE_APPLICATION_CREDENTIALS.
+    let credential = applicationDefault();
+    if (config.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        credential = cert(JSON.parse(config.FIREBASE_SERVICE_ACCOUNT_JSON));
+      } catch {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.');
+      }
+    }
+    initializeApp({ credential, projectId: config.GOOGLE_CLOUD_PROJECT });
+  }
+  return getAuth();
 }
 
 export function createServer(db, config = process.env) {
@@ -68,7 +89,6 @@ export function createServer(db, config = process.env) {
           service: 'FindMe API',
           version: '1.2.0',
           database: config.STORE || 'memory',
-          lineConfigured: Boolean(config.LINE_CHANNEL_ID && config.LINE_CHANNEL_SECRET),
           timestamp: Date.now()
         });
       }
@@ -103,6 +123,23 @@ export function createServer(db, config = process.env) {
         } catch {
           fail(400, 'Invalid JSON body.');
         }
+      }
+
+      // A FindMe account is intentionally lightweight: a display name creates
+      // a device-held session. No LINE or third-party login is required.
+      if (url.pathname === '/auth/guest' && req.method === 'POST') {
+        const displayName = text(body.name, 60);
+        const uid = token();
+        const session = token();
+        await db.transaction(async tx => {
+          tx.set('users', uid, { id: uid, displayName, photoURL: '', createdAt: now, updatedAt: now });
+          tx.set('sessions', hash(session), { uid, expiresAt: now + 30 * 86400000 });
+        });
+        return json(res, { token: session, user: publicUser(await db.get('users', uid)) });
+      }
+
+      if (url.pathname.startsWith('/auth/line') || url.pathname === '/auth/exchange') {
+        fail(410, 'Third-party login has been removed. Enter your name to continue.');
       }
 
       // LINE OAuth Start
@@ -230,15 +267,19 @@ export function createServer(db, config = process.env) {
         return json(res, { token: session, user: publicUser(await db.get('users', uid)) });
       }
 
-      // Authenticated endpoints
-      const bearer = req.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
-      const session = bearer ? await db.get('sessions', hash(bearer)) : null;
-      if (!session || session.expiresAt < now) fail(401, 'Please sign in with your LINE account.');
-      const uid = session.uid;
+      // Authenticated endpoints use the opaque FindMe session issued above.
+      const bearer = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
+      if (!bearer) fail(401, 'Please sign in to continue.');
+      const savedSession = await db.get('sessions', hash(bearer));
+      if (!savedSession || savedSession.expiresAt < now) {
+        if (savedSession) await db.remove('sessions', hash(bearer));
+        fail(401, 'Your sign-in session has expired. Please sign in again.');
+      }
+      const uid = savedSession.uid;
 
       if (url.pathname === '/auth/logout' && req.method === 'POST') {
-        await db.remove('sessions', hash(bearer));
         await app.updateLocation(uid, { isSharing: false });
+        await db.remove('sessions', hash(bearer));
         return json(res, { ok: true });
       }
 
@@ -256,6 +297,9 @@ export function createServer(db, config = process.env) {
       }
       if (url.pathname === '/family/join' && req.method === 'POST') {
         return json(res, await app.join(uid, body.code));
+      }
+      if (url.pathname === '/family/leave' && req.method === 'POST') {
+        return json(res, await app.leaveFamily(uid));
       }
       if (url.pathname === '/location' && req.method === 'POST') {
         return json(res, await app.updateLocation(uid, body));
@@ -275,7 +319,19 @@ export function createServer(db, config = process.env) {
   });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Vercel discovers top-level .mjs files as serverless functions. Supplying a
+// default handler also lets the same HTTP application run there directly.
+let serverlessInstance;
+export default function serverlessHandler(req, res) {
+  if (req.url.startsWith('/api/')) req.url = req.url.slice(4);
+  if (!serverlessInstance) {
+    const isMemory = (process.env.STORE || 'memory') === 'memory';
+    serverlessInstance = createServer(isMemory ? memoryStore() : firestoreStore());
+  }
+  serverlessInstance.emit('request', req, res);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const isMemory = (process.env.STORE || 'memory') === 'memory';
   const db = isMemory ? (await import('./memory-store.mjs')).memoryStore() : firestoreStore();
   const port = Number(process.env.PORT || 8787);

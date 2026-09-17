@@ -51,7 +51,7 @@ export default function Home() {
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.userNameText}>{data.user.displayName}</Text>
-                  <Badge label="LINE ID" tone="line" />
+                  <Badge label="LOCAL" tone="info" />
                 </View>
                 <Text style={styles.userStatusSubtext}>
                   {data.emergency
@@ -443,4 +443,3 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   }
 });
-

@@ -12,7 +12,7 @@ import type { Location } from '../types';
 
 export default function SOS() {
   const { preset } = useLocalSearchParams<{ preset?: string }>();
-  const { data, refresh } = useSession();
+  const { data, refresh, setEmergency } = useSession();
   const [type, setType] = useState(preset || 'Flood');
   const [people, setPeople] = useState(1);
   const [message, setMessage] = useState('');
@@ -39,6 +39,7 @@ export default function SOS() {
 
   const emergencyCategories = [
     { type: 'Flood', label: 'Flash Flood / Rising Water', sub: 'Requires boat / immediate rescue', icon: 'water' as const, color: colors.blue, bg: colors.blueSoft },
+    { type: 'Accident', label: 'Traffic / Road Accident', sub: 'Collision or road hazard', icon: 'car' as const, color: colors.amber, bg: colors.amberSoft },
     { type: 'Trapped', label: 'Trapped in Building', sub: 'Exit blocked / isolated', icon: 'warning' as const, color: colors.amber, bg: colors.amberSoft },
     { type: 'Medical', label: 'Medical Emergency', sub: 'Requires paramedic / ambulance', icon: 'medical' as const, color: colors.red, bg: colors.redSoft },
     { type: 'Fire', label: 'Fire / Smoke Hazard', sub: 'Dense smoke / active flame', icon: 'flame' as const, color: '#EA580C', bg: '#FFF7ED' },
@@ -114,9 +115,15 @@ export default function SOS() {
                   disabled={busy}
                   label={busy ? 'Saving…' : '✅ I Am Safe — Resolve SOS'}
                   tone="line"
-                  onPress={() =>
-                    run(async () => {
-                      await api('/sos/close', { status: 'resolved' });
+                    onPress={() =>
+                      run(async () => {
+                        if (data.user.id === 'guest-local') {
+                          setEmergency(null);
+                          router.replace('/');
+                          return;
+                        }
+                        await api('/sos/close', { status: 'resolved' });
+                        setEmergency(null);
                       await refresh();
                       router.replace('/');
                     })
@@ -128,9 +135,14 @@ export default function SOS() {
                   label="Cancel SOS Alert"
                   tone="secondary"
                   size="sm"
-                  onPress={() =>
-                    run(async () => {
-                      await api('/sos/close', { status: 'cancelled' });
+                    onPress={() =>
+                      run(async () => {
+                        if (data.user.id === 'guest-local') {
+                          setEmergency(null);
+                          return;
+                        }
+                        await api('/sos/close', { status: 'cancelled' });
+                        setEmergency(null);
                       await refresh();
                     })
                   }
@@ -267,6 +279,10 @@ export default function SOS() {
                         run(async () => {
                           const fresh =
                             Date.now() - position.updatedAt < 60000 ? position : await currentLocation();
+                          if (data.user.id === 'guest-local') {
+                            setEmergency({ id: `local-${Date.now()}`, userId: data.user.id, type, message, people, location: fresh, status: 'pending', createdAt: Date.now() });
+                            return;
+                          }
                           await api('/sos', {
                             type,
                             people,
@@ -482,4 +498,3 @@ const styles = StyleSheet.create({
     lineHeight: 16
   }
 });
-

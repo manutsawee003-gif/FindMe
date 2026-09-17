@@ -10,8 +10,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
+      "autoIncrement": true,
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://backend-ten-pi-47.vercel.app",
+        "GOOGLE_MAPS_ANDROID_API_KEY": "AIzaSyBAjM-WuhotJe7LkNBCoSMhTIcwqhJShSs",
+        "GOOGLE_MAPS_IOS_API_KEY": "AIzaSyAbBzDcb_4Vh_DuUBe0KhJzJK6hKA6eQo8",
+        "EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY": "AIzaSyDsNxrA9SbeUfZgYCldG067rbVnUmV4jZI"
       }
     },
     "production": {

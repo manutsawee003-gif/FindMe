@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  TextInput,
   ImageBackground,
   ScrollView,
   Platform,
@@ -16,18 +17,19 @@ import { useSession } from '../services/session';
 import { colors } from '../constants/theme';
 
 export function SignIn() {
-  const { login, ready, error } = useSession();
+  const { enter, ready, error } = useSession();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [name, setName] = useState('');
 
-  const handleLineLogin = async () => {
+  const handleEnter = async () => {
     setBusy(true);
     setMessage('');
     try {
-      await login();
+      await enter(name);
     } catch (e: any) {
       console.error('Login error:', e);
-      setMessage(e.message || 'Unable to complete LINE Login. Please try again.');
+      setMessage(e.message || 'Unable to sign in. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -100,29 +102,35 @@ export function SignIn() {
                 </View>
               </View>
 
-              {/* Official LINE Login Button */}
+              {/* Simple name entry */}
               <View style={styles.authActionArea}>
+                <TextInput
+                  accessibilityLabel="Your name"
+                  autoCapitalize="words"
+                  onChangeText={value => { setName(value); setMessage(''); }}
+                  placeholder="Your name"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                  value={name}
+                />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Continue with LINE"
+                  accessibilityLabel="Enter FindMe"
                   disabled={busy}
-                  onPress={handleLineLogin}
+                  onPress={handleEnter}
                   style={({ pressed }) => [
-                    styles.lineButton,
+                    styles.emailButton,
                     { opacity: busy ? 0.7 : pressed ? 0.9 : 1 }
                   ]}
                 >
-                  <View style={styles.lineIconBubble}>
-                    <Ionicons name="chatbubble-ellipses" size={16} color="#06C755" />
-                  </View>
-                  <Text style={styles.lineButtonLabel}>
-                    {busy ? 'Connecting to LINE...' : 'Continue with LINE'}
+                  <Ionicons name="mail-outline" size={18} color={colors.white} />
+                  <Text style={styles.emailButtonLabel}>
+                    {busy ? 'Please wait...' : 'Enter FindMe'}
                   </Text>
                   <Ionicons name="chevron-forward" size={18} color={colors.white} />
                 </Pressable>
-
                 {/* Error Notice */}
-                <ErrorNotice message={message || error} onRetry={handleLineLogin} />
+                <ErrorNotice message={message || error} onRetry={handleEnter} />
 
                 {/* Legal Terms & Privacy Disclaimer */}
                 <Text style={styles.termsText}>
@@ -258,6 +266,55 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 4
   },
+  input: {
+    backgroundColor: colors.white,
+    borderColor: '#CBD5E1',
+    borderRadius: 14,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 16,
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  emailButton: {
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 54,
+    paddingHorizontal: 18,
+  },
+  emailButtonLabel: {
+    color: colors.white,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  googleButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: '#CBD5E1',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 52,
+    paddingHorizontal: 18,
+  },
+  googleButtonLabel: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '800',
+    marginLeft: 10,
+  },
+  textAction: {
+    color: '#0284C7',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   lineButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -301,5 +358,3 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   }
 });
-
-

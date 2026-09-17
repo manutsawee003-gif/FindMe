@@ -36,13 +36,23 @@ export function domain(db) {
       const key = hash(text(code, 64).toUpperCase());
       return db.transaction(async tx => { const invite = await tx.get('invites', key); const user = await tx.get('users', uid); if (!invite || invite.expiresAt < Date.now() || invite.remaining < 1) fail(404, 'This invitation is invalid or expired.'); if (user.familyId === invite.familyId) return {}; if (user.familyId) fail(409, 'You already belong to another family.'); tx.set('users', uid, { ...user, familyId: invite.familyId }); tx.set('invites', key, { ...invite, remaining: invite.remaining - 1 }); return {}; });
     },
+    async leaveFamily(uid) {
+      return db.transaction(async tx => {
+        const user = await tx.get('users', uid);
+        if (!user?.familyId) fail(400, 'You are not currently in a family.');
+        const family = await tx.get('families', user.familyId);
+        if (family?.ownerId === uid) fail(409, 'The family owner cannot leave the family yet.');
+        tx.set('users', uid, { ...user, familyId: '' });
+        return {};
+      });
+    },
     async updateLocation(uid, body) {
       const position = body.isSharing ? location(body.location) : null;
       if (typeof body.isSharing !== 'boolean') fail(400, 'Invalid sharing state.');
       await db.transaction(async tx => { const user = await tx.get('users', uid); tx.set('users', uid, { ...user, isSharing: body.isSharing, location: position }); }); return {};
     },
     async sos(uid, body) {
-      if (!['Flood', 'Trapped', 'Medical', 'Fire', 'Other'].includes(body.type)) fail(400, 'Choose an emergency type.');
+      if (!['Flood', 'Accident', 'Trapped', 'Medical', 'Fire', 'Other'].includes(body.type)) fail(400, 'Choose an emergency type.');
       if (!Number.isInteger(body.people) || body.people < 1 || body.people > 1000) fail(400, 'Number of people must be between 1 and 1000.');
       const position = location(body.location); const message = body.message ? text(body.message, 1000) : '';
       return db.transaction(async tx => { const existing = await tx.get('activeEmergencies', uid); if (existing) return existing; const emergency = { id: token(), userId: uid, type: body.type, people: body.people, message, location: position, status: 'pending', createdAt: Date.now() }; tx.set('activeEmergencies', uid, emergency); tx.set('emergencyRequests', emergency.id, emergency); return emergency; });

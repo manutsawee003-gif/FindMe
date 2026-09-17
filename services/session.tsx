@@ -1,9 +1,6 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { AppState, Platform } from 'react-native';
-import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as Crypto from 'expo-crypto';
-import { api, restoreSession, saveSession, storage, pendingInvite } from './api';
+import { AppState } from 'react-native';
+import { api, restoreSession, saveSession } from './api';
 import { currentLocation } from './location';
 import type { Snapshot } from '../types';
 
@@ -12,9 +9,9 @@ type State = {
   ready: boolean;
   error: string;
   refresh: () => Promise<void>;
-  login: () => Promise<void>;
+  enter: (name: string) => Promise<void>;
+  setEmergency: (emergency: Snapshot['emergency']) => void;
   logout: () => Promise<void>;
-  complete: (ticket: string) => Promise<void>;
   sharing: boolean;
   share: (on: boolean) => Promise<void>;
 };
@@ -30,6 +27,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const generation = useRef(0);
 
   const refresh = useCallback(async () => {
+    if (!data) return;
     try {
       const next = await api<Snapshot>('/snapshot');
       setData(next);
@@ -42,22 +40,31 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setError(e.message);
       }
     }
+  }, [data]);
+
+  const enter = useCallback(async (name: string) => {
+    const displayName = name.trim();
+    if (!displayName) throw new Error('Please enter your name.');
+    const result = await api<{ token: string }>('/auth/guest', { name: displayName });
+    await saveSession(result.token);
+    const snapshot = await api<Snapshot>('/snapshot');
+    setData(snapshot);
+    setError('');
   }, []);
 
   useEffect(() => {
     let live = true;
     restoreSession()
-      .then(async has => {
-        if (has && live) await refresh();
+      .then(async hasSession => {
+        if (hasSession && live) setData(await api<Snapshot>('/snapshot'));
       })
-      .catch(e => setError(e.message))
-      .finally(() => {
-        if (live) setReady(true);
-      });
-    return () => {
-      live = false;
-    };
-  }, [refresh]);
+      .catch(async () => {
+        await saveSession('');
+        if (live) setData(null);
+      })
+      .finally(() => { if (live) setReady(true); });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -96,7 +103,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       await api('/location', { isSharing: false });
     }
     await refresh();
-  }, [refresh]);
+  }, [data, refresh]);
 
   useEffect(() => {
     if (!sharing) return;
@@ -119,41 +126,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
     return () => clearInterval(interval);
   }, [sharing]);
 
-  const complete = useCallback(async (ticket: string) => {
-    const verifier = await storage.get('findme-login-verifier');
-    if (!verifier) throw new Error('Login session expired. Please sign in again.');
-    const result = await api<{ token: string }>('/auth/exchange', { ticket, verifier });
-    await saveSession(result.token);
-    await storage.remove('findme-login-verifier');
-    await refresh();
-    const invite = await pendingInvite.get();
-    router.replace(invite ? { pathname: '/join', params: { code: invite } } : '/');
-  }, [refresh]);
-
-  const login = async () => {
-    const verifier = Array.from(await Crypto.getRandomBytesAsync(32)).map(b => b.toString(16).padStart(2, '0')).join('');
-    const challenge = (await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, { encoding: Crypto.CryptoEncoding.BASE64 })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    await storage.set('findme-login-verifier', verifier);
-    
-    const redirectUri = Platform.OS === 'web'
-      ? `${window.location.origin}/auth/callback`
-      : 'findme://auth/callback';
-      
-    const result = await api<{ url: string }>('/auth/line/start', { challenge, redirectUri });
-    if (Platform.OS === 'web') {
-      window.location.assign(result.url);
-      return;
-    }
-    const response = await WebBrowser.openAuthSessionAsync(result.url, redirectUri);
-    if (response.type === 'success') {
-      const params = new URL(response.url).searchParams;
-      if (params.get('error')) throw new Error(params.get('error')!);
-      const ticket = params.get('ticket');
-      if (ticket) await complete(ticket);
-    } else {
-      throw new Error('LINE Login was cancelled.');
-    }
-  };
+  const setEmergency = useCallback((emergency: Snapshot['emergency']) => {
+    setData(previous => previous ? { ...previous, emergency } : previous);
+  }, []);
 
   const logout = async () => {
     ++generation.current;
@@ -168,7 +143,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   };
 
   return (
-    <Context.Provider value={{ data, ready, error, refresh, login, logout, complete, sharing, share }}>
+    <Context.Provider value={{ data, ready, error, refresh, enter, setEmergency, logout, sharing, share }}>
       {children}
     </Context.Provider>
   );
@@ -179,5 +154,3 @@ export function useSession() {
   if (!state) throw new Error('Session provider missing.');
   return state;
 }
-
-

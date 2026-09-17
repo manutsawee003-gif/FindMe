@@ -2,8 +2,21 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const API = process.env.EXPO_PUBLIC_API_BASE_URL || (Platform.OS === 'web' ? 'http://localhost:8787' : 'http://localhost:8787');
+// Public HTTPS API used by real devices and internal-distribution builds.
+// Local development can override it through EXPO_PUBLIC_API_BASE_URL.
+export const API = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://backend-ten-pi-47.vercel.app';
 let session = '';
+
+/** AbortSignal.timeout is not implemented by the Hermes runtime in this app. */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export const storage = {
   get: (key: string) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(key)) : SecureStore.getItemAsync(key),
@@ -24,7 +37,7 @@ export async function saveSession(value: string) {
 
 export async function checkServerHealth(): Promise<{ ok: boolean; message?: string }> {
   try {
-    const res = await fetch(`${API}/health`, { signal: AbortSignal.timeout(4000) });
+    const res = await fetchWithTimeout(`${API}/health`, {}, 4000);
     if (res.ok) {
       const data = await res.json();
       return { ok: true, message: data.service || 'FindMe API' };
@@ -38,15 +51,16 @@ export async function checkServerHealth(): Promise<{ ok: boolean; message?: stri
 export async function api<T>(path: string, body?: unknown): Promise<T> {
   if (!API) throw new Error('Backend URL (EXPO_PUBLIC_API_BASE_URL) is not configured.');
   try {
-    const response = await fetch(`${API}${path}`, {
+    const response = await fetchWithTimeout(`${API}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(session ? { Authorization: `Bearer ${session}` } : {})
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(20000)
-    });
+      body: body === undefined ? undefined : JSON.stringify(body)
+    // Serverless backends can need a little longer on their first request after
+    // being idle; subsequent requests normally finish much faster.
+    }, 45000);
     
     let data;
     try {
@@ -73,7 +87,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
 export async function publicApi<T>(path: string): Promise<T> {
   if (!API) throw new Error('Set backend URL first.');
   try {
-    const response = await fetch(`${API}${path}`, { signal: AbortSignal.timeout(10000) });
+    const response = await fetchWithTimeout(`${API}${path}`, {}, 10000);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Unable to load public map data.');
     return data;
@@ -87,4 +101,3 @@ export const pendingInvite = {
   set: (value: string) => AsyncStorage.setItem('findme-invite', value),
   clear: () => AsyncStorage.removeItem('findme-invite')
 };
-

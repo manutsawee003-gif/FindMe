@@ -5,12 +5,13 @@ module.exports = ({ config }) => ({
   slug: 'findme',
   scheme: 'findme',
   version: '1.0.0',
+  owner: 'manutsawee',
   extra: {
     ...config.extra,
     eas: {
-      ...config.extra?.eas,
-      projectId: 'ff739f22-93ca-4021-97fa-72e58c6cbd06',
+      projectId: '3b6babec-aa50-4d11-b7a3-fb24d2e258e4',
     },
+    hasGoogleMapsAndroidKey: Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY || process.env.GOOGLE_MAPS_ANDROID_API_KEY),
   },
   orientation: 'portrait',
   icon: './assets/images/icon.png',
@@ -23,6 +24,7 @@ module.exports = ({ config }) => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
+    './plugins/withCleartextTraffic',
     [
       'expo-location',
       {
@@ -41,6 +43,8 @@ module.exports = ({ config }) => ({
     ...config.android,
     package: 'com.manutsawee.findme',
     versionCode: 1,
+    // Required only while the Android Emulator talks to the local development API.
+    usesCleartextTraffic: true,
     adaptiveIcon: {
       foregroundImage: './assets/images/icon.png',
       backgroundColor: '#FFFFFF',
@@ -53,7 +57,7 @@ module.exports = ({ config }) => ({
     config: {
       ...config.android?.config,
       googleMaps: {
-        apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY || '',
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY || process.env.GOOGLE_MAPS_ANDROID_API_KEY || '',
       },
     },
   },
